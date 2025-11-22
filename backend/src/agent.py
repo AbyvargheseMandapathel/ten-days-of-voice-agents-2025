@@ -1,17 +1,18 @@
 import json
 import logging
+import os
 from dotenv import load_dotenv
-from typing import Annotated, List, Optional
+from typing import List, Optional
+from pydantic import Field, AliasChoices
+
 from livekit.agents import (
     Agent,
     AgentSession,
     JobContext,
     JobProcess,
-    MetricsCollectedEvent,
     RoomInputOptions,
     WorkerOptions,
     cli,
-    metrics,
     tokenize,
     llm,
     function_tool,
@@ -20,56 +21,45 @@ from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit import rtc
 
-import os
-import sys
-
+# ---------------------------------------------------------------------------
+# Logging & environment
+# ---------------------------------------------------------------------------
 logger = logging.getLogger("agent")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(ch)
 
-# load_dotenv(".env.local")
+load_dotenv(".env.local")
 
-# def check_env_vars():
-#     required_vars = [
-#         "LIVEKIT_URL",
-#         "LIVEKIT_API_KEY",
-#         "LIVEKIT_API_SECRET",
-#         "DEEPGRAM_API_KEY",
-#         "GOOGLE_API_KEY",
-#         "MURF_API_KEY",
-#     ]
-#     missing = [var for var in required_vars if not os.getenv(var)]
-#     if missing:
-#         logger.error(f"Missing required environment variables: {', '.join(missing)}")
-#         logger.error("Please check your .env.local file.")
-#         # We might want to exit or just let it fail, but logging is helpful.
-#         # sys.exit(1) # Optional: force exit
-
-# check_env_vars()
-
-
+# ---------------------------------------------------------------------------
+# Barista Agent
+# ---------------------------------------------------------------------------
 class Barista(Agent):
+    """Voice-driven barista that takes coffee orders."""
+
     def __init__(self, room: rtc.Room) -> None:
-        super().__init__(
-            instructions="""You are a friendly and efficient barista at 'CodeBrew Coffee'.
-            Your goal is to take the customer's coffee order.
-            
-            You need to collect the following information to complete an order:
-            1. Drink Type (e.g., Coffee, Latte, Cappuccino)
-            2. Size (Small, Medium, Large)
-            3. Milk preference (if applicable)
-            4. Any extras (optional)
-            5. Customer Name
-            
-            Ask clarifying questions one by one to fill in missing details. 
-            Do not assume any details unless the user specifies them.
-            
-            Once you have all the details, confirm the full order with the customer.
-            If they say yes, use the `submit_order` tool to finalize it.
-            
-            Be polite, energetic, and use coffee puns occasionally.
-            """,
+        # Pass instructions to the Agent base class (optional)
+        instructions = (
+            "You are a friendly and efficient barista at 'coffeebucks'.\n\n"
+            "IMPORTANT: You must call the `update_order` tool IMMEDIATELY whenever the user provides "
+            "any new information (drink, size, milk, etc.), even if the order is incomplete. "
+            "Do not wait to collect all fields. Update the screen first, then ask the next question.\n\n"
+            "Collect the following information one-by-one:\n"
+            "1. Drink Type (Coffee, Latte, Cappuccino, ...)\n"
+            "2. Size (Small, Medium, Large)\n"
+            "3. Milk preference (Whole, Skim, Oat, Almond, Soy, None)\n"
+            "4. Extras (optional list like Syrup, Caramel, Whipped Cream)\n"
+            "5. Customer name\n\n"
+            "Ask clarifying questions when a field is missing. Confirm final order and "
+            "call submit_order when the customer confirms."
         )
+        super().__init__(instructions=instructions)
         self.room = room
-        self.order = {
+
+        # canonical order state
+        self.order: dict = {
             "drinkType": None,
             "size": None,
             "milk": None,
@@ -77,117 +67,156 @@ class Barista(Agent):
             "name": None,
         }
 
-    @function_tool
-    def update_order(
-        self,
-        drink_type: Annotated[Optional[str], "Type of drink (e.g., Coffee, Latte, Cappuccino)"] = None,
-        size: Annotated[Optional[str], "Size of the drink (Small, Medium, Large)"] = None,
-        milk: Annotated[Optional[str], "Type of milk (Whole, Skim, Oat, Almond, Soy, None)"] = None,
-        extras: Annotated[Optional[List[str]], "List of extras (e.g., Whipped Cream, Sugar, Syrup)"] = None,
-        name: Annotated[Optional[str], "Customer's name"] = None,
-    ):
-        """Update the current order details."""
-        if drink_type:
-            self.order["drinkType"] = drink_type
-        if size:
-            self.order["size"] = size
-        if milk:
-            self.order["milk"] = milk
-        if extras is not None:
-            self.order["extras"] = extras
-        if name:
-            self.order["name"] = name
-        
-        logger.info(f"Order updated: {self.order}")
-        return f"Current order state: {json.dumps(self.order)}"
+# ---------------------------------------------------------------------------
+# Tools — NOTE: these are plain functions exposed as tools to the LLM.
+# They MUST NOT include 'self' in the signature.
+# Use llm.current_agent to access the Barista instance (agent state).
+# ---------------------------------------------------------------------------
 
-    @function_tool
-    async def submit_order(self):
-        """Call this when the user confirms the order is correct and complete."""
-        # Check if required fields are present (basic validation)
-        required_fields = ["drinkType", "size", "name"]
-        missing = [f for f in required_fields if not self.order.get(f)]
-        
-        if missing:
-            return f"Cannot submit order. Missing details: {', '.join(missing)}. Please ask the user for these."
+@function_tool
+async def update_order(
+    drink_type: Optional[str] = None,
+    size: Optional[str] = None,
+    milk: Optional[str] = None,
+    extras: Optional[List[str]] = None,
+    name: Optional[
+        str
+    ] = Field(
+        default=None,
+        # Accept these alias names from the model: "name", "customer", "customerName", "customer_name"
+        validation_alias=AliasChoices("name", "customer", "customerName", "customer_name"),
+    ),
+) -> dict:
+    """
+    Update the current order. Only provided fields are applied.
+    Returns the new order state as {'order': {...}}.
+    """
 
-        # Save to file
-        try:
-            with open("order.json", "w") as f:
-                json.dump(self.order, f, indent=2)
-            
-            summary = f"Order submitted for {self.order['name']}: {self.order['size']} {self.order['drinkType']}"
-            if self.order.get('milk'):
-                summary += f" with {self.order['milk']}"
-            if self.order.get('extras'):
-                summary += f" and {', '.join(self.order['extras'])}"
-            
-            # Generate HTML Receipt
-            receipt_html = f"""
-            <div style="background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-family: 'Courier New', monospace; max-width: 300px; margin: 0 auto; color: #333;">
-                <h2 style="text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px;">CodeBrew Coffee</h2>
-                <p><strong>Customer:</strong> {self.order['name']}</p>
-                <p><strong>Item:</strong> {self.order['size']} {self.order['drinkType']}</p>
-                <p><strong>Milk:</strong> {self.order.get('milk', 'None')}</p>
-                <p><strong>Extras:</strong> {', '.join(self.order['extras']) if self.order['extras'] else 'None'}</p>
-                <div style="text-align: center; margin-top: 20px; border-top: 2px dashed #333; padding-top: 10px;">
-                    <p>Thank you!</p>
-                </div>
-            </div>
-            """
-            
-            # Publish receipt to frontend
-            logger.info("Publishing receipt data...")
-            await self.room.local_participant.publish_data(
-                receipt_html, 
-                topic="receipt"
-            )
-            
-            return f"Order saved successfully! Summary: {summary}"
-        except Exception as e:
-            logger.error(f"Failed to save order or publish receipt: {e}")
-            return "Failed to save order due to an internal error."
+    # Retrieve the active agent instance and its state
+    agent = llm.current_agent
+    if agent is None:
+        logger.error("No current agent available in update_order")
+        return {"status": "error", "message": "no agent instance"}
+
+    # type: ignore helps type checkers; at runtime this is the Barista instance
+    barista: Barista = agent  # type: ignore
+
+    # Apply partial updates only for provided args
+    if drink_type is not None:
+        barista.order["drinkType"] = drink_type
+
+    if size is not None:
+        barista.order["size"] = size
+
+    if milk is not None:
+        barista.order["milk"] = milk
+
+    if extras is not None:
+        # ensure extras is a list
+        barista.order["extras"] = extras
+
+    if name is not None:
+        barista.order["name"] = name
+
+    logger.info(f"Order updated: {barista.order}")
+    
+    # Publish partial update to frontend
+    try:
+        payload = {**barista.order, "status": "in_progress"}
+        await barista.room.local_participant.publish_data(json.dumps(payload), topic="receipt")
+    except Exception:
+        logger.exception("Failed to publish update")
+
+    return {"status": "ok", "order": barista.order}
 
 
-def prewarm(proc: JobProcess):
+@function_tool
+async def submit_order() -> dict:
+    """
+    Validate the current order, persist it to order.json, publish an HTML receipt,
+    and return a summary dict.
+    """
+
+    agent = llm.current_agent
+    if agent is None:
+        logger.error("No current agent available in submit_order")
+        return {"status": "error", "message": "no agent instance"}
+
+    barista: Barista = agent  # type: ignore
+
+    required_fields = ["drinkType", "size", "milk", "extras", "name"]
+    missing = [f for f in required_fields if not barista.order.get(f)]
+    if missing:
+        logger.info(f"submit_order: missing fields {missing}")
+        return {"status": "error", "message": f"Missing fields: {', '.join(missing)}"}
+
+    # Persist order
+    try:
+        with open("orders.json", "w", encoding="utf-8") as f:
+            json.dump(barista.order, f, indent=2)
+        logger.info("orders.json written successfully.")
+    except Exception as e:
+        logger.exception("Failed to write orders.json")
+        return {"status": "error", "message": "Failed to write orders.json"}
+
+    # Build a readable summary
+    extras_str = ", ".join(barista.order["extras"]) if barista.order["extras"] else "None"
+    summary = (
+        f"Order for {barista.order['name']}: {barista.order['size']} "
+        f"{barista.order['drinkType']} with {barista.order['milk']}. Extras: {extras_str}"
+    )
+
+    # Publish receipt to the frontend via LiveKit data channel (non-blocking best-effort)
+    try:
+        logger.info("Publishing receipt to LiveKit data channel...")
+        receipt_data = json.dumps({**barista.order, "status": "completed"})
+        await barista.room.local_participant.publish_data(receipt_data, topic="receipt")
+        logger.info("Receipt published.")
+    except Exception as e:
+        logger.exception("Failed to publish receipt (continuing)")
+
+    return {"status": "success", "summary": summary, "order": barista.order}
+
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+def prewarm(proc: JobProcess) -> None:
+    """Pre-warm heavy models to reduce first-request latency."""
     proc.userdata["vad"] = silero.VAD.load()
 
 
-async def entrypoint(ctx: JobContext):
-    # Logging setup
-    ctx.log_context_fields = {
-        "room": ctx.room.name,
-    }
+# ---------------------------------------------------------------------------
+# Entrypoint for the LiveKit worker
+# ---------------------------------------------------------------------------
+async def entrypoint(ctx: JobContext) -> None:
+    ctx.log_context_fields = {"room": ctx.room.name}
 
-    # Set up a voice AI pipeline
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
-        llm=google.LLM(
-            model="gemini-2.5-flash",
-        ),
+        llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew", 
+            voice="en-US-matthew",
             style="Conversation",
             tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-            text_pacing=True
+            text_pacing=True,
         ),
-        turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
         preemptive_generation=True,
     )
 
-    # Start the session with the Barista agent and tools
+    # Start the session with an instance of Barista (agent state lives on the instance)
     await session.start(
         agent=Barista(room=ctx.room),
         room=ctx.room,
-        room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVC(),
-        ),
+        room_input_options=RoomInputOptions(noise_cancellation=noise_cancellation.BVC()),
     )
 
-    # Join the room and connect to the user
     await ctx.connect()
 
 
+# ---------------------------------------------------------------------------
+# Run as a standalone script (useful for local debugging)
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))
