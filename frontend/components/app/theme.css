@@ -1,0 +1,46 @@
+:root {
+  --coffee-bg: #1a1512;
+  --coffee-card-bg: #2c241b;
+  --coffee-accent: #d4a373;
+  --coffee-text: #faedcd;
+  --coffee-text-muted: #ccd5ae;
+  --coffee-border: #4a3b2a;
+  
+  --glass-bg: rgba(44, 36, 27, 0.7);
+  --glass-border: rgba(212, 163, 115, 0.3);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+body {
+  background-color: var(--coffee-bg);
+  color: var(--coffee-text);
+  font-family: 'Inter', sans-serif;
+}
+
+.coffee-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
+  color: var(--coffee-text);
+}
+
+.coffee-accent {
+  color: var(--coffee-accent);
+}
+
+.coffee-btn {
+  background-color: var(--coffee-accent);
+  color: var(--coffee-bg);
+  font-weight: bold;
+  border-radius: 8px;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.coffee-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}

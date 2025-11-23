@@ -46,6 +46,19 @@ logger = logging.getLogger("agent")
 # check_env_vars()
 
 
+
+def save_order_to_file(order: dict):
+    try:
+        # Ensure directory exists
+        os.makedirs("backend/src", exist_ok=True)
+        with open("backend/src/orders.json", "a") as f:
+            json.dump(order, f)
+            f.write("\n")
+    except Exception as e:
+        logger.error(f"Failed to save order to file: {e}")
+        raise
+
+
 class Barista(Agent):
     def __init__(self, room: rtc.Room) -> None:
         super().__init__(
@@ -78,7 +91,7 @@ class Barista(Agent):
         }
 
     @function_tool
-    def update_order(
+    async def update_order(
         self,
         drink_type: Annotated[Optional[str], "Type of drink (e.g., Coffee, Latte, Cappuccino)"] = None,
         size: Annotated[Optional[str], "Size of the drink (Small, Medium, Large)"] = None,
@@ -99,6 +112,14 @@ class Barista(Agent):
             self.order["name"] = name
         
         logger.info(f"Order updated: {self.order}")
+        # Publish partial order to frontend for real‑time preview
+        try:
+            await self.room.local_participant.publish_data(
+                json.dumps(self.order).encode(),
+                topic="order_update",
+            )
+        except Exception as e:
+            logger.error(f"Failed to publish order update: {e}")
         return f"Current order state: {json.dumps(self.order)}"
 
     @function_tool
@@ -113,8 +134,7 @@ class Barista(Agent):
 
         # Save to file
         try:
-            with open("order.json", "w") as f:
-                json.dump(self.order, f, indent=2)
+            save_order_to_file(self.order)
             
             summary = f"Order submitted for {self.order['name']}: {self.order['size']} {self.order['drinkType']}"
             if self.order.get('milk'):
@@ -124,14 +144,16 @@ class Barista(Agent):
             
             # Generate HTML Receipt
             receipt_html = f"""
-            <div style="background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-family: 'Courier New', monospace; max-width: 300px; margin: 0 auto; color: #333;">
-                <h2 style="text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px;">CodeBrew Coffee</h2>
-                <p><strong>Customer:</strong> {self.order['name']}</p>
-                <p><strong>Item:</strong> {self.order['size']} {self.order['drinkType']}</p>
-                <p><strong>Milk:</strong> {self.order.get('milk', 'None')}</p>
-                <p><strong>Extras:</strong> {', '.join(self.order['extras']) if self.order['extras'] else 'None'}</p>
-                <div style="text-align: center; margin-top: 20px; border-top: 2px dashed #333; padding-top: 10px;">
-                    <p>Thank you!</p>
+            <div class="text-center">
+                <h2 class="text-2xl font-bold mb-4 coffee-accent" style="border-bottom: 1px dashed var(--coffee-accent); padding-bottom: 10px;">CodeBrew Coffee</h2>
+                <div class="space-y-2 text-left inline-block">
+                    <p><strong class="coffee-accent">Customer:</strong> {self.order['name']}</p>
+                    <p><strong class="coffee-accent">Item:</strong> {self.order['size']} {self.order['drinkType']}</p>
+                    <p><strong class="coffee-accent">Milk:</strong> {self.order.get('milk', 'None')}</p>
+                    <p><strong class="coffee-accent">Extras:</strong> {', '.join(self.order['extras']) if self.order['extras'] else 'None'}</p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-dashed border-coffee-accent">
+                    <p class="text-xl italic">Thank you!</p>
                 </div>
             </div>
             """

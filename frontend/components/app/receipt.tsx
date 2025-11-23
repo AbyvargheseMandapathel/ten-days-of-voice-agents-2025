@@ -40,12 +40,12 @@ export function Receipt() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="relative max-w-md w-full bg-transparent">
+      <div className="relative max-w-md w-full coffee-card p-6">
         <button
           onClick={() => setReceiptHtml(null)}
-          className="absolute -top-10 right-0 text-white hover:text-gray-200 font-bold"
+          className="absolute top-2 right-2 text-coffee-text hover:text-coffee-accent font-bold"
         >
-          Close
+          ✕
         </button>
         <div
           dangerouslySetInnerHTML={{ __html: receiptHtml }}
