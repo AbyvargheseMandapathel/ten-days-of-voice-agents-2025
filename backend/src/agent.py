@@ -12,9 +12,9 @@ from livekit.agents import (
     cli,
     metrics,
     tokenize,
-    # function_tool,
-    # RunContext
+    function_tool,
 )
+from wellness import WellnessManager
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -24,30 +24,34 @@ load_dotenv(".env.local")
 
 
 class Assistant(Agent):
-    def __init__(self) -> None:
+    def __init__(self, wellness_manager: WellnessManager) -> None:
         super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
-        )
+            instructions=f"""You are a supportive and grounded Health & Wellness Voice Companion.
+Your goal is to have a short daily check-in with the user.
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+{wellness_manager.get_context_prompt()}
+
+Guidelines:
+1. Ask about mood and energy (e.g., "How are you feeling?", "What's your energy like?").
+2. Ask about intentions/objectives for the day (e.g., "What are 1-3 things you'd like to get done?").
+3. Offer simple, realistic advice (non-medical, grounded).
+4. Close with a brief recap of their mood and objectives.
+5. ALWAYS call the `log_daily_checkin` tool before saying goodbye to save the session data.
+""",
+        )
+        self.wellness_manager = wellness_manager
+
+    @function_tool
+    def log_daily_checkin(self, mood: str, objectives: list[str], summary: str):
+        """Log the daily check-in data to the wellness journal.
+
+        Args:
+            mood: The user's self-reported mood.
+            objectives: List of objectives/intentions for the day.
+            summary: A brief summary of the check-in.
+        """
+        self.wellness_manager.save_entry(mood, objectives, summary)
+        return "Check-in logged successfully."
 
 
 def prewarm(proc: JobProcess):
@@ -122,8 +126,9 @@ async def entrypoint(ctx: JobContext):
     # await avatar.start(session, room=ctx.room)
 
     # Start the session, which initializes the voice pipeline and warms up the models
+    wellness_manager = WellnessManager()
     await session.start(
-        agent=Assistant(),
+        agent=Assistant(wellness_manager),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             # For telephony applications, use `BVCTelephony` for best results
