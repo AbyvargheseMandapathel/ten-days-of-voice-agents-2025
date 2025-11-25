@@ -1,0 +1,32 @@
+[
+  {
+    "id": "variables",
+    "title": "Variables",
+    "summary": "Variables are containers that store data values. Think of them as labeled boxes where you can put information and retrieve it later. In programming, you give a variable a name and assign it a value. For example, in Python you might write 'age = 25' to store the number 25 in a variable called age. Variables make your code flexible because you can change their values and reuse them throughout your program.",
+    "sample_question": "What is a variable and why is it useful in programming?"
+  },
+  {
+    "id": "loops",
+    "title": "Loops",
+    "summary": "Loops allow you to repeat a block of code multiple times without writing it over and over. There are two main types: for loops and while loops. A for loop repeats a specific number of times or iterates through a collection of items. A while loop continues repeating as long as a condition is true. Loops are essential for tasks like processing lists, counting, or repeating actions until a goal is met.",
+    "sample_question": "Explain the difference between a for loop and a while loop."
+  },
+  {
+    "id": "functions",
+    "title": "Functions",
+    "summary": "Functions are reusable blocks of code that perform a specific task. You define a function once with a name and parameters, then you can call it whenever you need that task done. Functions help organize code, make it more readable, and avoid repetition. They can take inputs called parameters and return outputs. For example, a function called 'calculate_area' might take length and width as inputs and return the area.",
+    "sample_question": "What is a function and what are the benefits of using functions in your code?"
+  },
+  {
+    "id": "conditionals",
+    "title": "Conditionals",
+    "summary": "Conditionals allow your program to make decisions based on conditions. The most common conditional is the if statement, which executes code only when a condition is true. You can extend this with else and elif to handle multiple scenarios. For example, 'if temperature > 30: print hot, else: print cold'. Conditionals are fundamental for creating programs that respond differently to different situations.",
+    "sample_question": "How do if-else statements work and why are they important?"
+  },
+  {
+    "id": "data_types",
+    "title": "Data Types",
+    "summary": "Data types define what kind of value a variable can hold. Common data types include integers for whole numbers, floats for decimal numbers, strings for text, and booleans for true or false values. Each data type has specific operations you can perform on it. Understanding data types helps prevent errors and ensures your program handles data correctly. For example, you can add numbers but you concatenate strings.",
+    "sample_question": "What are the main data types in programming and how do they differ?"
+  }
+]

@@ -1,0 +1,101 @@
+# ===================================
+# Environment Variables (IMPORTANT!)
+# ===================================
+.env.local
+.env
+*.env.local
+backend/.env.local
+frontend/.env.local
+
+# ===================================
+# Python
+# ===================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ===================================
+# Node / Frontend
+# ===================================
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# ===================================
+# Logs
+# ===================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===================================
+# OS Files
+# ===================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ===================================
+# IDE
+# ===================================
+.vscode/
+.idea/
+*.sublime-*
+*.sublime-workspace
+*.sublime-project
+
+# ===================================
+# Testing
+# ===================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# ===================================
+# Misc
+# ===================================
+*.bak
+*.tmp
+.cache/
+*.lock
+uv.lock
+pnpm-lock.yaml
+
+# ===================================
+# LiveKit / Agent specific
+# ===================================
+*.wav
+*.mp3
+*.mp4
+recordings/
