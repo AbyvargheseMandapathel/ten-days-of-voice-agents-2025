@@ -20,8 +20,8 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'Teach-the-Tutor',
-  pageTitle: 'Teach-the-Tutor: Active Recall Coach',
+  companyName: 'AI Tutor',
+  pageTitle: 'AI Tutor: Active Recall Coach',
   pageDescription: 'Master programming concepts through active recall with AI-powered tutors',
 
   supportsChatInput: true,

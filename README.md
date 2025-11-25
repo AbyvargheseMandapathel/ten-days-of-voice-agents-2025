@@ -1,4 +1,4 @@
-# 🎓 Teach-the-Tutor: AI Active Recall Coach
+# 🎓 AI Tutor: AI Active Recall Coach
 
 An AI-powered voice tutoring system that helps users master programming concepts through active recall. Features three distinct learning modes with different Murf Falcon voices for an immersive educational experience.
 
@@ -51,8 +51,8 @@ An AI-powered voice tutoring system that helps users master programming concepts
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/Gangadhar-NG-CODER/teach-the-tutor-ai-voice-agent.git
-cd teach-the-tutor-ai-voice-agent
+git clone https://github.com/Gangadhar-NG-CODER/AI Tutor-ai-voice-agent.git
+cd AI Tutor-ai-voice-agent
 ```
 
 ### 2. Get API Keys
@@ -137,7 +137,7 @@ Open **http://localhost:3000** in your browser! 🎉
 ## 📁 Project Structure
 
 ```
-teach-the-tutor-ai-voice-agent/
+AI Tutor-ai-voice-agent/
 ├── backend/
 │   ├── shared-data/
 │   │   └── day4_tutor_content.json    # Programming concepts database

@@ -1,4 +1,4 @@
-# Frontend - Teach-the-Tutor UI
+# Frontend - AI Tutor UI
 
 Modern Next.js frontend with smooth animations and professional design.
 
